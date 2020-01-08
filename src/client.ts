@@ -461,17 +461,23 @@ export class SubscriptionClient {
   }
 
   // send message, or queue it if connection is not open
-  private sendMessageRaw(message: Object) {
+  private sendMessageRaw(message: any) {
     switch (this.status) {
       case this.wsImpl.OPEN:
-        let serializedMessage: string = JSON.stringify(message);
-        try {
-          JSON.parse(serializedMessage);
-        } catch (e) {
-          this.eventEmitter.emit('error', new Error(`Message must be JSON-serializable. Got: ${message}`));
+        // push messages into unsent while we're reconnecting
+        if (this.reconnecting && message.type !== MessageTypes.GQL_CONNECTION_INIT) {
+          this.unsentMessagesQueue.push(message);
+        } else {
+          let serializedMessage: string = JSON.stringify(message);
+          try {
+            JSON.parse(serializedMessage);
+          } catch (e) {
+            this.eventEmitter.emit('error', new Error(`Message must be JSON-serializable. Got: ${message}`));
+          }
+
+          this.client.send(serializedMessage);
         }
 
-        this.client.send(serializedMessage);
         break;
       case this.wsImpl.CONNECTING:
         this.unsentMessagesQueue.push(message);
